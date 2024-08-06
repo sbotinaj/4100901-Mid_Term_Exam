@@ -35,8 +35,11 @@
 //Declaro las banderas para las interrupciones
 volatile int8_t left_flag = 0;
 volatile int8_t right_flag = 0;
+volatile int8_t count_press_1 = 0; // contador para ver cuantas veces se presiona un boton
+volatile int8_t count_press_2 = 0;
 volatile uint32_t start_time_1 = 0;
 volatile uint32_t start_time_2 = 0;
+volatile uint32_t start_time_3 = 0;
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -49,6 +52,14 @@ void blink(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin, uint32_t interval_ms, uint8_t
         last_tick = HAL_GetTick();
         HAL_GPIO_TogglePin(GPIOx, GPIO_Pin);
         blink_count++;
+    }
+}
+
+void blink_2(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin, uint16_t Hz) {
+    static uint32_t heartbeat_tick = 0;
+    if (HAL_GetTick() >= heartbeat_tick) {
+        heartbeat_tick = HAL_GetTick() + Hz;  // 50 ms para un parpadeo a 20 Hz
+        HAL_GPIO_TogglePin(GPIOx, GPIO_Pin);
     }
 }
 /* USER CODE END PM */
@@ -74,12 +85,22 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
   //UNUSED(GPIO_Pin);
   if (GPIO_Pin==S1_Pin){// LEFT
 	  HAL_UART_Transmit(&huart2, (uint8_t*)"LEFT\r\n", 6, 10);
-	  left_flag = 1;
-	  start_time_1 = HAL_GetTick();  // Almacenar el tiempo en que se activó la interrupción
+	  count_press_1++;
+	  start_time_1 = HAL_GetTick()+start_time_1;  // Almacenar el tiempo en que se activó la interrupción
+	  if(count_press_1>0 && (HAL_GetTick()-start_time_1)<500){
+		  left_flag = 1;
+		  HAL_UART_Transmit(&huart2, (uint8_t*)"OK\r\n", 4, 10);
+		  count_press_1=0;
+	  }else{
+		  left_flag = 2;
+		  count_press_1=0;
+	  }
+
   } else if (GPIO_Pin==S2_Pin){//HAZARD
 	  HAL_UART_Transmit(&huart2, (uint8_t*)"RIGHT\r\n", 7, 10);
-	  right_flag = 1;
+	  count_press_2++;
 	  start_time_2 = HAL_GetTick();  // Almacenar el tiempo en que se activó la interrupción
+	  right_flag = 1;
   }
 
 }
@@ -142,6 +163,17 @@ int main(void)
 		  }
 		  HAL_Delay(1);
 	  }
+
+
+	  if (left_flag == 2) {
+
+		  right_flag = 0;//Verifica que el otro led se apague
+
+		  blink(LED1_GPIO_Port, LED1_Pin, 500,6);
+		  left_flag = 0;  // Resetear el flag después de 3 segundos
+		  HAL_UART_Transmit(&huart2, (uint8_t*)"flag2\r\n", 7, 10);
+		  }
+		  HAL_Delay(1);
 
 	  if (right_flag == 1) {
 		  left_flag = 0;//Verifica que el otro led se apague
