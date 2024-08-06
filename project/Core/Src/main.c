@@ -31,19 +31,24 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define FREQUENCY 50 // Frecuencia de parpadeo de los leds
+#define FREQUENCY 500 // Frecuencia de parpadeo de los leds
 //Declaro las banderas para las interrupciones
 volatile int8_t left_flag = 0;
 volatile int8_t right_flag = 0;
+volatile uint32_t start_time_1 = 0;
+volatile uint32_t start_time_2 = 0;
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-void blink(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin, uint16_t Hz) {
-    static uint32_t heartbeat_tick = 0;
-    if (HAL_GetTick() >= heartbeat_tick) {
-        heartbeat_tick = HAL_GetTick() + Hz;  // 50 ms para un parpadeo a 20 Hz
+void blink(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin, uint32_t interval_ms, uint8_t max_blinks) {
+    static uint32_t last_tick = 0;
+    static uint8_t blink_count = 0;
+
+    if (blink_count < max_blinks * 2 && HAL_GetTick() - last_tick >= interval_ms) {
+        last_tick = HAL_GetTick();
         HAL_GPIO_TogglePin(GPIOx, GPIO_Pin);
+        blink_count++;
     }
 }
 /* USER CODE END PM */
@@ -70,9 +75,11 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
   if (GPIO_Pin==S1_Pin){// LEFT
 	  HAL_UART_Transmit(&huart2, (uint8_t*)"LEFT\r\n", 6, 10);
 	  left_flag = 1;
+	  start_time_1 = HAL_GetTick();  // Almacenar el tiempo en que se activó la interrupción
   } else if (GPIO_Pin==S2_Pin){//HAZARD
 	  HAL_UART_Transmit(&huart2, (uint8_t*)"RIGHT\r\n", 7, 10);
 	  right_flag = 1;
+	  start_time_2 = HAL_GetTick();  // Almacenar el tiempo en que se activó la interrupción
   }
 
 }
@@ -81,13 +88,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-void blink(void){
-	static uint32_t heartbeat_tick =0;
-	if (heartbeat_tick < HAL_GetTick()){
-		heartbeat_tick =  HAL_GetTick()+1000;
-		HAL_GPIO_TogglePin(D1_GPIO_Port,D1_Pin);
-	}
-}
+
 /* USER CODE END 0 */
 
 /**
@@ -132,7 +133,25 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	  if (left_flag == 1) {
+		  right_flag = 0;//Verifica que el otro led se apague
+		  if (HAL_GetTick() - start_time_1 < 3000) {  // Verificar si han pasado menos de 3 segundos
+			  blink(LED1_GPIO_Port, LED1_Pin, 500,6);
+		  } else {
+			  left_flag = 0;  // Resetear el flag después de 3 segundos
+		  }
+		  HAL_Delay(1);
+	  }
 
+	  if (right_flag == 1) {
+		  left_flag = 0;//Verifica que el otro led se apague
+		  if (HAL_GetTick() - start_time_2 < 3000) {  // Verificar si han pasado menos de 3 segundos
+			  blink(LED2_GPIO_Port, LED2_Pin, 500,6);
+		  } else {
+			  right_flag = 0;  // Resetear el flag después de 3 segundos
+		  }
+		  HAL_Delay(1);
+	  }
   }
   /* USER CODE END 3 */
 }
@@ -257,7 +276,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, LED1_Pin|LED2_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, LED1_Pin|LED2_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin : S1_Pin */
   GPIO_InitStruct.Pin = S1_Pin;
@@ -267,7 +286,7 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pins : LED1_Pin LED2_Pin */
   GPIO_InitStruct.Pin = LED1_Pin|LED2_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
