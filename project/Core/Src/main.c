@@ -31,12 +31,21 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define FREQUENCY 50 // Frecuencia de parpadeo de los leds
+//Declaro las banderas para las interrupciones
+volatile int8_t left_flag = 0;
+volatile int8_t right_flag = 0;
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
+void blink(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin, uint16_t Hz) {
+    static uint32_t heartbeat_tick = 0;
+    if (HAL_GetTick() >= heartbeat_tick) {
+        heartbeat_tick = HAL_GetTick() + Hz;  // 50 ms para un parpadeo a 20 Hz
+        HAL_GPIO_TogglePin(GPIOx, GPIO_Pin);
+    }
+}
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -59,11 +68,11 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
   //UNUSED(GPIO_Pin);
   if (GPIO_Pin==S1_Pin){// LEFT
-	  HAL_UART_Transmit(&huart2, "LEFT\r\n", 6, 10);
+	  HAL_UART_Transmit(&huart2, (uint8_t*)"LEFT\r\n", 6, 10);
 	  left_flag = 1;
   } else if (GPIO_Pin==S2_Pin){//HAZARD
-	  HAL_UART_Transmit(&huart2, "RIGHT\r\n", 7, 10);
-	  hazard_flag = 1;
+	  HAL_UART_Transmit(&huart2, (uint8_t*)"RIGHT\r\n", 7, 10);
+	  right_flag = 1;
   }
 
 }
@@ -72,7 +81,13 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+void blink(void){
+	static uint32_t heartbeat_tick =0;
+	if (heartbeat_tick < HAL_GetTick()){
+		heartbeat_tick =  HAL_GetTick()+1000;
+		HAL_GPIO_TogglePin(D1_GPIO_Port,D1_Pin);
+	}
+}
 /* USER CODE END 0 */
 
 /**
@@ -107,7 +122,7 @@ int main(void)
   MX_DMA_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-  HAL_UART_Transmit(&huart2, "INICIO\r\n", 8, 10); // Mensaje de inicio del sistema
+  HAL_UART_Transmit(&huart2, (uint8_t*)"INICIO\r\n", 8, 10); // Mensaje de inicio del sistema
   /* USER CODE END 2 */
 
   /* Infinite loop */
